@@ -1,56 +1,104 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 class ServiceHttpClient {
-  final String _baseUrl = "http://127.0.0.1:8000/api";
+  final String baseUrl = 'http://10.0.2.2:8000/api/';
+  final FlutterSecureStorage secureStorage = FlutterSecureStorage();
 
-  Future<Map<String, dynamic>> post({
-    required String endpoint,
-    required Map<String, dynamic> body,
-    Map<String, String>? headers,
-  }) async {
-    final response = await http.post(
-      Uri.parse("$_baseUrl$endpoint"),
-      headers: headers ?? {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
-    );
+  // POST Request
+// POST Request
+  Future<http.Response> post(String endpoint, Map<String, dynamic> body) async {
+    final token = await secureStorage.read(key: 'authToken');
+    final url = Uri.parse('$baseUrl$endpoint');
 
-    return _handleResponse(response);
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': token != null ? 'Bearer $token' : '',
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+      return response;
+    } catch (e) {
+      throw Exception('Post request failed: $e');
+    }
   }
 
-  Future<Map<String, dynamic>> get({
-    required String endpoint,
-    Map<String, String>? headers,
-  }) async {
-    final response = await http.get(
-      Uri.parse("$_baseUrl$endpoint"),
-      headers: headers ?? {'Content-Type': 'application/json'},
-    );
-
-    return _handleResponse(response);
+  // GET Request
+  Future<http.Response> get(String endpoint) async {
+    final url = Uri.parse('$baseUrl$endpoint');
+    final token = await secureStorage.read(key: 'authToken');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          if (token != null) 'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+          'Content-type': 'application/json',
+        },
+      );
+      return response;
+    } catch (e) {
+      throw Exception('Get request failed: $e');
+    }
   }
 
-  Future<Map<String, dynamic>> put({
-    required String endpoint,
-    required Map<String, dynamic> body,
-    Map<String, String>? headers,
-  }) async {
-    final response = await http.put(
-      Uri.parse("$_baseUrl$endpoint"),
-      headers: headers ?? {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
-    );
-
-    return _handleResponse(response);
+  // PUT Request
+  Future<http.Response> put(String endpoint, Map<String, dynamic> body) async {
+    final url = Uri.parse('$baseUrl$endpoint');
+    final token = await secureStorage.read(key: 'authToken');
+    try {
+      final response = await http.put(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+      return response;
+    } catch (e) {
+      throw Exception('Put request failed: $e');
+    }
   }
 
-  Map<String, dynamic> _handleResponse(http.Response response) {
-    final jsonResponse = jsonDecode(response.body);
+  // DELETE Request
+  Future<http.Response> delete(String endpoint) async {
+    final url = Uri.parse('$baseUrl$endpoint');
+    final token = await secureStorage.read(key: 'authToken');
 
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return jsonResponse;
-    } else {
-      throw Exception(jsonResponse['message'] ?? 'Terjadi kesalahan');
+    try {
+      final response = await http.delete(
+        url,
+        headers: {
+          if (token != null) 'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+      return response;
+    } catch (e) {
+      throw Exception('Delete request failed: $e');
+    }
+  }
+
+  // General response handler (checking status and error handling)
+  Map<String, dynamic> handleResponse(http.Response response) {
+    try {
+      final jsonResponse = jsonDecode(response.body); // Decode response body
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return jsonResponse;
+      } else {
+        throw Exception(jsonResponse['message'] ?? 'Error occurred');
+      }
+    } catch (e) {
+      print('Error parsing response: $e');
+      throw Exception('Failed to parse response: $e');
     }
   }
 }
